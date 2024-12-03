@@ -23,7 +23,7 @@ from collections import namedtuple
 
 #: Constants for identifying mode family. Can be
 #: LP, HE, EH, TE, or TM.
-Family = Enum('Family', 'LP HE EH TE TM', module=__name__)
+Family = Enum('Family', 'LP HE HE_odd EH EH_odd TE TM', module=__name__)
 
 
 class Mode(namedtuple('Mode', 'family nu m')):
@@ -91,21 +91,21 @@ class Mode(namedtuple('Mode', 'family nu m')):
             if self.family == m2.family:
                 result = self.nu < m2.nu
             else:
-                if self.family is Family.HE:
+                if self.family is Family.HE or self.family is Family.HE_odd:
                     nu1 = self.nu - 1
                 elif self.family is Family.LP:
                     nu1 = self.nu
                 else:
                     nu1 = self.nu + 1
-                if m2.family is Family.HE:
+                if m2.family is Family.HE or m2.family is Family.HE_odd:
                     nu2 = m2.nu - 1
                 elif m2.family is Family.LP:
                     nu2 = m2.nu
                 else:
                     nu2 = m2.nu + 1
                 if nu1 == nu2:
-                    fams = [Family.LP, Family.EH, Family.TE,
-                            Family.HE, Family.TM]
+                    fams = [Family.LP, Family.EH, Family.EH_odd, Family.TE,
+                            Family.HE, Family.HE_odd, Family.TM]
                     result = fams.index(self.family) < fams.index(m2.family)
                 else:
                     result = nu1 < nu2
@@ -169,18 +169,21 @@ class Mode(namedtuple('Mode', 'family nu m')):
 
 #: Predefined HE(1,1) mode
 HE11 = Mode(Family.HE, 1, 1)
+HE_odd11 = Mode(Family.HE_odd, 1, 1)
+
+
 
 #: Predefined LP(0,1) mode
 LP01 = Mode(Family.LP, 0, 1)
 
 
 if __name__ == '__main__':
-    m = HE11
+    m = HE_odd11
     print(m)
     print(repr(m))
 
     def f():
-        a = HE11
+        a = HE_odd11
         return a
 
     print(f())

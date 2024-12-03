@@ -38,7 +38,7 @@ class Cutoff(FiberSolver):
                     m -= 1
             else:
                 nu -= 1
-        elif mode.family is ModeFamily.HE:
+        elif mode.family is ModeFamily.HE or mode.family is ModeFamily.HE_odd:
             if nu == 1:
                 m -= 1
             else:
@@ -70,7 +70,8 @@ class Cutoff(FiberSolver):
                                  args=(mode.nu,),
                                  lowbound=lowbound,
                                  ipoints=ipoints,
-                                 delta=delta)
+                                 delta=delta,
+                                 highbound=None)
         if isnan(co):
             self.logger.error("_findHEcutoff: no cutoff found for "
                               "{} mode".format(str(mode)))
@@ -97,8 +98,12 @@ class Neff(FiberSolver):
             nm = Mode(ModeFamily.LP, mode.nu+1, mode.m)
         elif mode.family is ModeFamily.HE:
             nm = Mode(ModeFamily.LP, mode.nu, mode.m)
+        elif mode.family is ModeFamily.HE_odd:
+            nm = Mode(ModeFamily.LP, mode.nu, mode.m)
         elif mode.family is ModeFamily.EH:
             nm = Mode(ModeFamily.LP, mode.nu+2, mode.m)
+        elif mode.family is ModeFamily.EH_odd:
+            nm = Mode(ModeFamily.LP, mode.nu + 2, mode.m)
         else:
             nm = Mode(ModeFamily.LP, 1, mode.m+1)
         co = self.fiber.cutoff(nm)
@@ -112,7 +117,9 @@ class Neff(FiberSolver):
                ModeFamily.TE: self._teceq,
                ModeFamily.TM: self._tmceq,
                ModeFamily.HE: self._heceq,
-               ModeFamily.EH: self._ehceq
+               ModeFamily.EH: self._ehceq,
+               ModeFamily.HE_odd: self._hoceq,
+               ModeFamily.EH_odd: self._ehoceq              # HERE
                }
 
         return self._findBetween(fct[mode.family], lowbound, highbound,
@@ -171,6 +178,24 @@ class Neff(FiberSolver):
 
         return numpy.array((er, 0, ez)), numpy.array((0, hphi, 0))
 
+    def _f1(self, wl, nu, neff):
+        rho = self.fiber.outerRadius(0)
+        k = wl.k0
+        nco2 = self.fiber.maxIndex(0, wl) ** 2
+        ncl2 = self.fiber.minIndex(1, wl) ** 2
+        u = rho * k * sqrt(nco2 - neff ** 2)
+        w = rho * k * sqrt(neff ** 2 - ncl2)
+        v = rho * k * sqrt(nco2 - ncl2)
+
+        jnu = jn(nu, u)
+        knw = kn(nu, w)
+
+        Delta = (1 - ncl2 / nco2) / 2
+        b1 = jvp(nu, u) / (u * jnu)
+        b2 = kvp(nu, w) / (w * knw)
+        F1 = (u * w / v) ** 2 * (b1 + (1 - 2 * Delta) * b2) / nu
+        return F1
+
     def _hefield(self, wl, nu, neff, r):
         rho = self.fiber.outerRadius(0)
         k = wl.k0
@@ -219,6 +244,8 @@ class Neff(FiberSolver):
         return numpy.array((er, ephi, ez)), numpy.array((hr, hphi, hz))
 
     _ehfield = _hefield
+    _hofield = _hefield
+    _ehofield = _hefield
 
     def _uw(self, wl, neff):
         r = self.fiber.outerRadius(0)
@@ -258,6 +285,8 @@ class Neff(FiberSolver):
                            ((nu * neff * v2 * knu) /
                             (nco * u * w))**2))
 
+    _hoceq = _heceq
+
     def _ehceq(self, neff, wl, nu):
         u, w = self._uw(wl, neff)
         v2 = u*u + w*w
@@ -273,3 +302,116 @@ class Neff(FiberSolver):
                 jnu * sqrt((u * kp * delta)**2 +
                            ((nu * neff * v2 * knu) /
                             (nco * u * w))**2))
+
+    _ehoceq = _ehceq
+
+    def _HEpoint(self, wl, nu, neff, r):
+        rho = self.fiber.outerRadius(0)
+        k = wl.k0
+        nco2 = self.fiber.maxIndex(0, wl) ** 2
+        ncl2 = self.fiber.minIndex(1, wl) ** 2
+        u = rho * k * sqrt(nco2 - neff ** 2)
+        u2 = u ** 2
+        w = rho * k * sqrt(neff ** 2 - ncl2)
+        w2 = w ** 2
+        v = rho * k * sqrt(nco2 - ncl2)
+
+
+        jnu = jn(nu, u)
+        jnu2 = jnu ** 2
+        jmur = jn(nu - 1, u * r / rho)
+        jmur2 = jmur ** 2
+        jpur = jn(nu + 1, u * r / rho)
+        jpur2 = jpur ** 2
+        knw = kn(nu, w)
+        knw2 = knw ** 2
+        kmur = kn(nu - 1, w * r / rho)
+        kmur2 = kmur ** 2
+        kpur = kn(nu + 1, w * r / rho)
+        kpur2 = kpur ** 2
+        k1wr = k1(w * r / rho)
+        k1w = k1(w)
+        j1ur = j1(u * r / rho)
+        j1u = j1(u)
+
+        Delta = (1 - ncl2 / nco2) / 2
+        b1 = jvp(nu, u) / (u * jnu)
+        b2 = kvp(nu, w) / (w * knw)
+        F1 = (u * w / v) ** 2 * (b1 + (1 - 2 * Delta) * b2) / nu
+        F2 = (v / (u * w)) ** 2 * nu / (b1 + b2)
+        a1 = (F2 - 1) / 2
+        a2 = (F2 + 1) / 2
+        a3 = (F1 - 1) / 2
+        a4 = (F1 + 1) / 2
+        a5 = (F1 - 1 + 2 * Delta) / 2
+        a6 = (F1 + 1 - 2 * Delta) / 2
+
+        if r > rho:
+            pz = ((1**2) / 2 * Y0) * ((nco2 * u2)/(neff * knw2 * w2)) * ((a1 * a5 * kmur2) + (a2 * a6 * kpur2) + (((1 - 2 * Delta - F1 * F2)/2) * kmur * kpur))
+        else:
+            pz = ((1**2) / 2 * Y0) * (nco2/(neff * jnu2)) * (a1 * a3 * jmur2) + ((a2 * a4 * jpur2) + (((1 - F1 * F2)/2) * jmur * jpur))
+        return numpy.array((0, 0, pz))#, numpy.array((0, 0, pz))
+    def _TEpoint(self, wl, nu, neff, r):
+        rho = self.fiber.outerRadius(0)
+        k = wl.k0
+        nco2 = self.fiber.maxIndex(0, wl) ** 2
+        ncl2 = self.fiber.minIndex(1, wl) ** 2
+        u = rho * k * sqrt(nco2 - neff ** 2)
+        w = rho * k * sqrt(neff ** 2 - ncl2)
+        v = rho * k * sqrt(nco2 - ncl2)
+
+        jnu = jn(nu, u)
+        knw = kn(nu, w)
+        k1wr = k1(w * r / rho)
+        k1wr2 = k1wr ** 2
+        k1w = k1(w)
+        k1w2 = k1w ** 2
+        j1ur = j1(u * r / rho)
+        j1ur2 = j1ur ** 2
+        j1u = j1(u)
+        j1u2 = j1u ** 2
+
+        b1 = jvp(nu, u) / (u * jnu)
+        b2 = kvp(nu, w) / (w * knw)
+        F2 = (v / (u * w)) ** 2 * nu / (b1 + b2)
+        a1 = (F2 - 1) / 2
+
+        if r > rho:
+             pz = ((1**2) / 2 * Y0) * (k1wr2 * neff / k1w2)
+        else:
+            pz = ((1**2) / 2 * Y0) * (j1ur2 * neff / j1u2)
+        return numpy.array((0, 0, pz))#, numpy.array((0, 0, 0))
+
+    def _TMpoint(self, wl, nu, neff, r):
+        rho = self.fiber.outerRadius(0)
+        k = wl.k0
+        nco2 = self.fiber.maxIndex(0, wl) ** 2
+        ncl2 = self.fiber.minIndex(1, wl) ** 2
+        u = rho * k * sqrt(nco2 - neff ** 2)
+        w = rho * k * sqrt(neff ** 2 - ncl2)
+        v = rho * k * sqrt(nco2 - ncl2)
+
+        jnu = jn(nu, u)
+        knw = kn(nu, w)
+        k1wr = k1(w * r / rho)
+        k1wr2 = k1wr ** 2
+        k1w = k1(w)
+        k1w2 = k1w ** 2
+        j1ur = j1(u * r / rho)
+        j1ur2 = j1ur ** 2
+        j1u = j1(u)
+        j1u2 = j1u ** 2
+
+        Delta = (1 - ncl2 / nco2) / 2
+        b1 = jvp(nu, u) / (u * jnu)
+        b2 = kvp(nu, w) / (w * knw)
+        F2 = (v / (u * w)) ** 2 * nu / (b1 + b2)
+        a1 = (F2 - 1) / 2
+
+        if r > rho:
+            pz = ((1**2) / 2 * Y0) * (nco2 / neff - neff * 2 * Delta) * (k1wr2 / k1w2)
+        else:
+            pz = ((1**2) / 2 * Y0) * (nco2 / neff) * (j1ur2 / j1u2)
+        return numpy.array((0, 0, pz))#, numpy.array((0, 0, 0))
+
+    _EHpoint = _HEpoint

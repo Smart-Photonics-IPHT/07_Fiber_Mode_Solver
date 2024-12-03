@@ -100,6 +100,13 @@ class _FSimulator(object):
         wl = self._wavelengths[wlidx]
         return self._fiber.neff(mode, wl, delta=self._delta, lowbound=lowbound)
 
+    def _Veff(self, mode, i):
+        ve = [{} for _ in self._wavelengths]
+        for i, wl in enumerate(self._wavelengths):
+            for m in self.modes()[i]:
+                ve[i][m] = self._fiber.Veff(m)
+        return ve
+
     def _lowbound(self, mode, i):
         wl = self._wavelengths[i]
         lowbound = max(layer.maxIndex(wl) for layer in self._fiber.layers)

@@ -15,11 +15,19 @@
 
 
 """Electromagnetic fields computation."""
+from math import sqrt
 
 import numpy
 from itertools import product
+
+import numpy as np
+from scipy.special import jvp, kvp
+from scipy.special._ufuncs import jn, k1, j1, k0
+from scipy.special.cython_special import kn
+
 from fibermodes import Wavelength, ModeFamily, HE11
 from fibermodes import constants
+from fibermodes.constants import Y0
 
 
 class Field(object):
@@ -43,6 +51,7 @@ class Field(object):
         self.mode = mode
         self.wl = Wavelength(wl)
         self.np = np
+        self.r = r
         self.xlim = (-r, r)
         self.ylim = (-r, r)
         p = numpy.linspace(-r, r, np)
@@ -61,6 +70,8 @@ class Field(object):
 
         """
         return numpy.cos(self.mode.nu * self.Phi + phi0)
+    def f2(self, phi0):
+        return numpy.cos(2*(self.mode.nu * self.Phi + phi0))
 
     def g(self, phi0):
         """Azimuthal dependency function.
@@ -129,10 +140,19 @@ class Field(object):
         """
         self._Ez = numpy.zeros(self.X.shape)
         f = self.f(phi)
+        g2 = self.g(phi)
+        g = -g2
         for i, j in product(range(self.np), repeat=2):
             er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
-            self._Ez[j, i] = er[2] * f[j, i]
-        return self._Ez
+            if self.mode.family is ModeFamily.HE_odd or self.mode.family is ModeFamily.EH_odd:
+                self._Ez[j, i] = er[2] * g[j, i]
+                return self._Ez
+            if self.mode.family is ModeFamily.TM:
+                self._Ez[j, i] = er[2]
+                return self._Ez
+            else:
+                self._Ez[j, i] = er[2] * f[j, i]
+                return self._Ez
 
     def Er(self, phi=0, theta=0):
         """r component of the E field.
@@ -146,8 +166,21 @@ class Field(object):
 
         """
         if self.mode.family is ModeFamily.LP:
-            return (self.Et(phi, theta) *
-                    numpy.cos(self.Epol(phi, theta) - self.Phi))
+            return (self.Et(phi, theta) * numpy.cos(self.Epol(phi, theta) - self.Phi))
+        if self.mode.family is ModeFamily.HE_odd or self.mode.family is ModeFamily.EH_odd:
+            self._Er = numpy.zeros(self.X.shape)
+            g1 = self.g(phi)
+            g = -g1
+            for i, j in product(range(self.np), repeat=2):
+                er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
+                self._Er[j, i] = er[0] * g[j, i]
+            return self._Er
+        if self.mode.family is ModeFamily.TM:
+            self._Er = numpy.zeros(self.X.shape)
+            for i, j in product(range(self.np), repeat=2):
+                er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
+                self._Er[j, i] = er[0]
+            return self._Er
         else:
             self._Er = numpy.zeros(self.X.shape)
             f = self.f(phi)
@@ -170,6 +203,20 @@ class Field(object):
         if self.mode.family is ModeFamily.LP:
             return (self.Et(phi, theta) *
                     numpy.sin(self.Epol(phi, theta) - self.Phi))
+        if self.mode.family is ModeFamily.HE_odd or self.mode.family is ModeFamily.EH_odd:
+            self._Ephi = numpy.zeros(self.X.shape)
+            f = self.f(phi)
+            for i, j in product(range(self.np), repeat=2):
+                er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
+                self._Ephi[j, i] = er[1] * f[j, i]
+            return self._Ephi
+        if self.mode.family is ModeFamily.TE:
+            self._Ephi = numpy.zeros(self.X.shape)
+            g = self.g(phi)
+            for i, j in product(range(self.np), repeat=2):
+                er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
+                self._Ephi[j, i] = er[1]
+            return self._Ephi
         else:
             self._Ephi = numpy.zeros(self.X.shape)
             g = self.g(phi)
@@ -193,8 +240,7 @@ class Field(object):
             return numpy.sqrt(numpy.square(self.Ex(phi, theta)) +
                               numpy.square(self.Ey(phi, theta)))
         else:
-            return numpy.sqrt(numpy.square(self.Er(phi, theta)) +
-                              numpy.square(self.Ephi(phi, theta)))
+            return self.Er(phi, theta) + self.Ephi(phi, theta)
 
     def Epol(self, phi=0, theta=0):
         """polarization of the transverse E field (in radians).
@@ -233,6 +279,78 @@ class Field(object):
             return numpy.sqrt(numpy.square(self.Er(phi, theta)) +
                               numpy.square(self.Ephi(phi, theta)) +
                               numpy.square(self.Ez(phi, theta)))
+
+    def betaz(self, phi=0, theta=0):
+        z = 10e6
+        k = 6.28 / self.wl
+        neff = self.fiber.neff(self.mode, self.wl)
+        betaz = neff * k * z
+        return betaz
+
+
+        beta_z = k * neff * z
+        return beta_z
+    def betaz0(self, phi=0, theta=0, Neff_min=0):
+        z = 10e6
+        k = 6.28 / self.wl
+        neff = Neff_min
+        betaz0 = k * neff * z
+        return betaz0
+    def _f1(self):
+        rho = self.fiber.outerRadius(0)
+        nu = self.mode.nu
+        neff = self.fiber.neff(self.mode, self.wl)
+        k = 6.23 / self.wl
+        nco2 = 1.50 ** 2
+        ncl2 = 1.45 ** 2
+        u = rho * k * np.sqrt(nco2 - neff ** 2)
+        w = rho * k * np.sqrt(neff ** 2 - ncl2)
+        v = rho * k * np.sqrt(nco2 - ncl2)
+        jnu = jn(nu, u)
+        knw = kn(nu, w)
+        Delta = (1 - ncl2 / nco2) / 2
+        b1 = jvp(nu, u) / (u * jnu)
+        b2 = kvp(nu, w) / (w * knw)
+        F1 = ((u * w / v) ** 2) * (b1 + (1 - 2 * Delta) * b2) / nu
+        return F1
+
+    def _f2(self):
+        rho = self.fiber.outerRadius(0)
+        nu = self.mode.nu
+        neff = self.fiber.neff(self.mode, self.wl)
+        k = 6.23 / self.wl
+        nco2 = 1.50 ** 2
+        ncl2 = 1.45 ** 2
+        u = rho * k * np.sqrt(nco2 - neff ** 2)
+        w = rho * k * np.sqrt(neff ** 2 - ncl2)
+        v = rho * k * np.sqrt(nco2 - ncl2)
+        jnu = jn(nu, u)
+        knw = kn(nu, w)
+        b1 = jvp(nu, u) / (u * jnu)
+        b2 = kvp(nu, w) / w * knw
+        F2 = ((v / (u * w)) ** 2) * (nu / (b1 + b2))
+        return F2
+
+    def eprop(self, phi=0, theta=0):
+            z = 816508.13
+            k = 6.28 / self.wl
+            phase = np.random.uniform(0, 2 * np.pi)
+            exponent = (k ** 2) * (1.50 ** 2) * self._f1()
+            dexponent = self._f2()
+            beta = exponent / dexponent
+            beta = np.abs(beta)
+            beta = np.sqrt(beta)
+            #bz = beta * z
+            return self.Et(phi, theta) * np.exp(1j * beta * z)
+
+    def eprop2(self, phi=0, theta=0):
+            z = 1.0
+            k = 2*np.pi / self.wl
+            neff = self.fiber.neff(self.mode, self.wl)
+            beta = neff * k
+            return self.Et(phi, theta) * np.exp(1j * beta * z)
+
+
 
     def Hx(self, phi=0, theta=0):
         """x component of the H field.
@@ -288,10 +406,10 @@ class Field(object):
 
         """
         self._Hz = numpy.zeros(self.X.shape)
-        f = self.f(phi)
+        g = self.g(phi)
         for i, j in product(range(self.np), repeat=2):
             er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
-            self._Hz[j, i] = hr[2] * f[j, i]
+        self._Hz[j, i] = hr[2] * g[j, i]
         return self._Hz
 
     def Hr(self, phi=0, theta=0):
@@ -310,10 +428,10 @@ class Field(object):
                     numpy.cos(self.Hpol(phi, theta) - self.Phi))
         else:
             self._Hr = numpy.zeros(self.X.shape)
-            f = self.f(phi)
+            g = self.g(phi)
             for i, j in product(range(self.np), repeat=2):
                 er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
-                self._Hr[j, i] = hr[0] * f[j, i]
+                self._Hr[j, i] = hr[0] * g[j, i]
             return self._Hr
 
     def Hphi(self, phi=0, theta=0):
@@ -332,10 +450,10 @@ class Field(object):
                     numpy.sin(self.Hpol(phi, theta) - self.Phi))
         else:
             self._Hphi = numpy.zeros(self.X.shape)
-            g = self.g(phi)
+            f = self.f(phi)
             for i, j in product(range(self.np), repeat=2):
                 er, hr = self.fiber._rfield(self.mode, self.wl, self.R[j, i])
-                self._Hphi[j, i] = hr[1] * g[j, i]
+                self._Hphi[j, i] = hr[1] * f[j, i]
             return self._Hphi
 
     def Ht(self, phi=0, theta=0):
@@ -419,5 +537,38 @@ class Field(object):
         return 0.5 * constants.epsilon0 * neff * constants.c * self.I()
 
     def S(self):
-        """Pointing vector"""
+
         pass
+
+    def poynting(self, phi=0, theta=0):
+        """Poynting vector"""
+        if self.mode.family is ModeFamily.HE:
+            self._poynting = numpy.zeros(self.X.shape)
+            f2 = self.f(phi)
+            for i, j in product(range(self.np), repeat=2):
+                pz = self.fiber._control(self.mode, self.wl, self.R[j, i])
+                self._poynting[j, i] = pz[2]# * f2[j, i]
+            return self._poynting
+        if self.mode.family is ModeFamily.TM:
+            self._poynting = numpy.zeros(self.X.shape)
+            for i, j in product(range(self.np), repeat=2):
+                pz = self.fiber._control(self.mode, self.wl, self.R[j, i])
+                self._poynting[j, i] = pz[2]
+            return self._poynting
+        if self.mode.family is ModeFamily.TE:
+            self._poynting = numpy.zeros(self.X.shape)
+            for i, j in product(range(self.np), repeat=2):
+                pz = self.fiber._control(self.mode, self.wl, self.R[j, i])
+                self._poynting[j, i] = pz[2]
+            return self._poynting
+        if self.mode.family is ModeFamily.EH:
+            self._poynting = numpy.zeros(self.X.shape)
+            f2 = self.f(phi)
+            for i, j in product(range(self.np), repeat=2):
+                pz = self.fiber._control(self.mode, self.wl, self.R[j, i])
+                self._poynting[j, i] = pz[2]# * f2[j, i]
+            return self._poynting
+
+
+
+

@@ -65,6 +65,7 @@ class Fiber(object):
             self.layers.append(layer)
 
         self.co_cache = {Mode("HE", 1, 1): 0,
+                         Mode("HE_odd", 1, 1): 0,
                          Mode("LP", 0, 1): 0}
         self.ne_cache = {}
 
@@ -227,6 +228,10 @@ class Fiber(object):
             self.set_ne_cache(wl, mode, neff)
             return neff
 
+    def Veff(self, mode, wl):
+        n2 = self.minIndex(-1, wl)
+        return Wavelength(wl).k0 * self.innerRadius(-1) * sqrt(self.neff(mode, wl) * self.neff(mode, wl) - n2*n2)
+
     def beta(self, omega, mode, p=0, delta=1e-6, lowbound=None):
         wl = Wavelength(omega=omega)
         if p == 0:
@@ -276,7 +281,7 @@ class Fiber(object):
                 (constants.tpi * constants.c / (wl * wl))**2 * 1e-3)
 
     def findVmodes(self, wl, numax=None, mmax=None, delta=1e-6):
-        families = (ModeFamily.HE, ModeFamily.EH, ModeFamily.TE, ModeFamily.TM)
+        families = (ModeFamily.HE, ModeFamily.HE_odd, ModeFamily.EH, ModeFamily.EH_odd, ModeFamily.TE, ModeFamily.TM)
         return self.findModes(families, wl, numax, mmax, delta)
 
     def findLPmodes(self, wl, ellmax=None, mmax=None, delta=1e-6):
@@ -302,7 +307,7 @@ class Fiber(object):
 
                 if (fam is ModeFamily.TE or fam is ModeFamily.TM) and nu > 0:
                     break
-                if (fam is ModeFamily.HE or fam is ModeFamily.EH) and nu == 0:
+                if (fam is ModeFamily.HE or fam is ModeFamily.EH or fam is ModeFamily.HE_odd or fam is ModeFamily.EH_odd) and nu == 0:
                     continue
                 if numax is not None and nu > numax:
                     break
@@ -311,8 +316,9 @@ class Fiber(object):
                         break
                     mode = Mode(fam, nu, m)
                     try:
+                        veff = self.Veff(mode, wl)
                         co = self.cutoff(mode)
-                        if co > v0:
+                        if co > v0 or veff < 1:
                             break
                     except (NotImplementedError, ValueError):
                         neff = self.neff(mode, wl, delta)
@@ -336,5 +342,15 @@ class Fiber(object):
                ModeFamily.TE: self._neff._tefield,
                ModeFamily.TM: self._neff._tmfield,
                ModeFamily.EH: self._neff._ehfield,
-               ModeFamily.HE: self._neff._hefield}
+               ModeFamily.HE: self._neff._hefield,
+               ModeFamily.HE_odd: self._neff._hofield,
+               ModeFamily.EH_odd: self._neff._hofield}
         return fct[mode.family](wl, mode.nu, neff, r)
+    def _control(self, mode, wl, r):
+        neff = self.neff(mode, wl)
+        act = {ModeFamily.HE: self._neff._HEpoint,
+               ModeFamily.TE: self._neff._TEpoint,
+               ModeFamily.TM: self._neff._TMpoint}
+        return act[mode.family](wl, mode.nu, neff, r)
+    def _bb(self):
+        pass
