@@ -1,5 +1,5 @@
 # fibermodes
-Multilayers fiber mode solver (Speckle Pattern)
+Optical step-index fiber mode solver suitable for multi-layer circular core structures. 
 
 API documentation available on http://fibermodes.rtfd.org/
 
