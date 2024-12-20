@@ -3,7 +3,7 @@ Multilayers fiber mode solver (Speckle Pattern)
 
 API documentation available on http://fibermodes.rtfd.org/
 
-This code can be used freely for non-profit scientific work. When using this code for any publication we'd be pleased if you could acknowledge: Behnam Pishnamazi, Sobhi Saeed, and Mario Chemnitz from the Smart Photonics group, Leibniz Institute of Photonic Technologies, Albert-Einstein-Str 9, 07745 Jena, Germany.
+This code can be used freely for non-profit scientific work. When using this code for any publication we'd be pleased if you could acknowledge: Behnam Pishnamazi, and Mario Chemnitz from the Smart Photonics group, Leibniz Institute of Photonic Technologies, Albert-Einstein-Str 9, 07745 Jena, Germany.
 
 Installation
 ============
