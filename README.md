@@ -68,7 +68,7 @@ Please fell free to share me your experience.
 This is not the recommended way. You should consider *development* installation
 instead. However, this is the simplest installation, as it does not require `git`.
 
-1. Download the [ZIP archive from GitHub](https://github.com/cbrunet/fibermodes).
+1. Download the [ZIP archive from GitHub](https://github.com/Smart-Photonics-IPHT/07_Fiber_Mode_Solver_2.0).
 2. Unzip it!
 3. On a command line, go inside the `fibermodes` directory.
 4. Run `python setup.py install`
@@ -91,7 +91,7 @@ Then you should configure you machine with ssh keys, and configure your name
 and email for git.
 
 The third step is to fork and clone the
-[fibermodes repository](https://github.com/cbrunet/fibermodes).
+[fibermodes repository](https://github.com/Smart-Photonics-IPHT/07_Fiber_Mode_Solver_2.0).
 I recommend forking it first, as it will allow you to commit your changes
 on GitHub, and to suggest pull requests.
 
