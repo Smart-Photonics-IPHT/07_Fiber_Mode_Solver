@@ -15,29 +15,27 @@
 # You should have received a copy of the GNU General Public License
 # along with FiberModes.  If not, see <http://www.gnu.org/licenses/>.
 
-import ez_setup
-ez_setup.use_setuptools()
-
 from setuptools import setup, find_packages
 
-
-setup(name='fibermodes',
-      version='0.2.0',
-      description='Multilayers optical fiber mode solver',
-      author='Charles Brunet',
-      author_email='charles@cbrunet.net',
-      url='https://github.com/cbrunet/fibermodes',
-      packages=find_packages(exclude=['plots', 'scripts', 'tests']),
-      include_package_data=True,
-      entry_points={
+setup(
+    name='fibermodes',
+    version='0.3.0',
+    description='Multilayers optical fiber mode solver',
+    author='Behnam Pishnamazi, Mario Chemnitz (based on v.0.2.0 by Charles Brunet)',
+    author_email='mario.chemnitz@leibniz-ipht.de',
+    url='https://github.com/Smart-Photonics-IPHT/07_Fiber_Mode_Solver_2.0',
+    packages=find_packages(exclude=['plots', 'scripts', 'tests']),
+    include_package_data=True,
+    python_requires='>=3.4',
+    entry_points={
         'gui_scripts': [
-            'fibereditor = fibermodesgui.fibereditorapp:main',
-            'materialcalculator = fibermodesgui.materialcalculator:main',
-            'modesolver = fibermodesgui.modesolverapp:main',
-            'wavelengthcalculator = fibermodesgui.wavelengthcalculator:main'
+            'fibereditor=fibermodesgui.fibereditorapp:main',
+            'materialcalculator=fibermodesgui.materialcalculator:main',
+            'modesolver=fibermodesgui.modesolverapp:main',
+            'wavelengthcalculator=fibermodesgui.wavelengthcalculator:main'
         ]
-      },
-      classifiers=[
+    },
+    classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
         'Environment :: X11 Applications :: Qt',
@@ -48,14 +46,17 @@ setup(name='fibermodes',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
-        'Topic :: Scientific/Engineering :: Physics'],
-      install_requires=[
-        'numpy >= 1.9.0',
-        'scipy >= 0.15.0',
-        'pyqtgraph >= 0.9.10',
-        # 'PyQt4 >= 4.11'  # see http://stackoverflow.com/questions/4628519/is-it-possible-to-require-pyqt-from-setuptools-setup-py
-      ],
-      extras_require={
-        'test': ['nose >= 1.3.2', 'coverage >= 3.7']
-      }
-      )
+        'Topic :: Scientific/Engineering :: Physics'
+    ],
+    install_requires=[
+        'numpy>=1.9.0',
+        'scipy>=0.15.0',
+        'pyqtgraph>=0.9.10',
+    ],
+    extras_require={
+        'test': [
+            'nose>=1.3.2',
+            'coverage>=3.7'
+        ]
+    }
+)
