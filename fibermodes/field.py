@@ -240,7 +240,20 @@ class Field(object):
             return numpy.sqrt(numpy.square(self.Ex(phi, theta)) +
                               numpy.square(self.Ey(phi, theta)))
         else:
-            return self.Er(phi, theta) + self.Ephi(phi, theta)
+            return numpy.sqrt(numpy.square(self.Er(phi, theta)) +
+                              numpy.square(self.Ephi(phi, theta))) # return self.Er(phi, theta) + self.Ephi(phi, theta)
+
+    def Et2(self, phi=0, theta=0):
+
+        if self.mode.family is ModeFamily.LP:
+            return numpy.sqrt(numpy.square(self.Ex(phi, theta)) +
+                                  numpy.square(self.Ey(phi, theta)))
+        else:
+            return self.Er(phi, theta) + self.Ephi(phi, theta)  # return self.Er(phi, theta) + self.Ephi(phi, theta)
+
+
+
+
 
     def Epol(self, phi=0, theta=0):
         """polarization of the transverse E field (in radians).
@@ -344,11 +357,11 @@ class Field(object):
             return self.Et(phi, theta) * np.exp(1j * beta * z)
 
     def eprop2(self, phi=0, theta=0):
-            z = 1.0
+            z = 4
             k = 2*np.pi / self.wl
             neff = self.fiber.neff(self.mode, self.wl)
             beta = neff * k
-            return self.Et(phi, theta) * np.exp(1j * beta * z)
+            return self.Et2(phi, theta) * np.exp(1j * beta * z)
 
 
 
